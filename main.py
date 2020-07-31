@@ -67,5 +67,5 @@ for refURI in references:
         else:
             result.add((s, RDFS.label, label))
 
-with open('missing-periods.ttl', 'wb') as f:
+with open('missing-intervals.ttl', 'wb') as f:
     result.serialize(f, format='text/turtle')
