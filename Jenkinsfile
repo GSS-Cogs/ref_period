@@ -30,7 +30,7 @@ pipeline {
                     def id = pmd.drafter.createDraftset(env.JOB_NAME).id
                     String graph = "http://gss-data.org.uk/graph/reference-intervals"
                     echo "Adding reference intervals to ${graph}"
-                    pmd.drafter.addData(id, "${WORKSPACE}/missing-periods.ttl", "text/turtle", "UTF-8", graph)
+                    pmd.drafter.addData(id, "${WORKSPACE}/missing-intervals.ttl", "text/turtle", "UTF-8", graph)
                     pmd.drafter.publishDraftset(id)
                 }
             }
