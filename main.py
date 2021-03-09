@@ -1,27 +1,51 @@
+from collections import defaultdict
+
 from cachecontrol import CacheControl
 from cachecontrol.caches import FileCache
 from cachecontrol.heuristics import ExpiresAfter
 from rdflib import Graph, URIRef, RDF, RDFS, Literal
 from rdflib.namespace import Namespace
+
 import requests
 
 session = CacheControl(requests.Session(), cache=FileCache('.cache'), heuristic=ExpiresAfter(days=1))
 
-unlabelled = session.post('https://staging.gss-data.org.uk/sparql',
-                          headers={'Accept': 'application/sparql-results+json'},
-                          data={
-                              'query': '''PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+response = session.post(
+        'https://staging.gss-data.org.uk/sparql',
+        headers={'Accept': 'application/sparql-results+json'},
+        data={'query': '''
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX qb: <http://purl.org/linked-data/cube#>
+PREFIX sdmxdim: <http://purl.org/linked-data/sdmx/2009/dimension#>
+PREFIX reftime: <http://reference.data.gov.uk/def/intervals/>
 
-SELECT DISTINCT ?o
-WHERE {
-  ?s ?p ?o .
-  FILTER (STRSTARTS(STR(?o), 'http://reference.data.gov.uk/id')) .
-  FILTER NOT EXISTS { ?o rdfs:label ?l } .
-}'''}
-                          )
+SELECT DISTINCT ?dsgraph ?o WHERE {
+  {
+    BIND (sdmxdim:refPeriod as ?d)
+  } UNION {
+    ?d a qb:DimensionProperty ;
+         rdfs:subPropertyOf+ sdmxdim:refPeriod .
+  }
+  GRAPH ?dsgraph {
+    [] ?d ?o
+  }
+  FILTER NOT EXISTS {
+    GRAPH <http://gss-data.org.uk/graph/reference-intervals> {
+      ?o a reftime:Interval
+    }
+  }
+}'''})
 
-references = (binding['o']['value'] for binding in unlabelled.json()['results']['bindings']
-              if binding['o']['type'] == 'uri')
+undefined = defaultdict(set)
+
+for binding in response.json().get('results', {}).get('bindings', []):
+    if binding.get('o', {}).get('type', None) != 'uri':
+        print(f'Warning, value of dimension is not a resource: {binding.get("o", {}).get("value")}')
+        continue
+    resource = binding.get('o', {}).get('value', None)
+    dsgraph = binding.get('dsgraph', {}).get('value', None)
+    if resource is not None:
+        undefined[resource].add(dsgraph)
 
 SCOVO = Namespace('http://purl.org/NET/scovo#')
 TIME = Namespace('http://www.w3.org/2006/time#')
@@ -29,10 +53,12 @@ GREGORIAN_INTERVAL = 'http://reference.data.gov.uk/id/gregorian-interval/'
 GREGORIAN_INSTANT = 'http://reference.data.gov.uk/id/gregorian-instant/'
 
 result = Graph()
-for refURI in references:
+for refURI in undefined:
     turtle = session.get(refURI, headers={'Accept': 'text/turtle'})
     if turtle.status_code != requests.codes.ok:
         print(f'Error {turtle.status_code} for <{refURI}>')
+        for dsgraph in undefined[refURI]:
+            print(f' - <{dsgraph}>')
         continue
     g = Graph()
     g.parse(data=turtle.text, format='text/turtle')
