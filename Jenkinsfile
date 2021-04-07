@@ -15,7 +15,12 @@ pipeline {
                 }
             }
             steps {
-                sh 'python main.py'
+                script {
+                    def pmd = pmdConfig('pmd')
+                    withEnv(["SPARQL_URL=${pmd.config.base_uri}/sparql"]) {
+                        sh 'python main.py'
+                    }
+                }
             }
         }
         stage('Publish') {

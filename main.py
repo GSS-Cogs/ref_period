@@ -5,13 +5,15 @@ from cachecontrol.caches import FileCache
 from cachecontrol.heuristics import ExpiresAfter
 from rdflib import Graph, URIRef, RDF, RDFS, Literal
 from rdflib.namespace import Namespace
+from os import environ
 
 import requests
 
 session = CacheControl(requests.Session(), cache=FileCache('.cache'), heuristic=ExpiresAfter(days=1))
 
+SPARQL_URL = environ.get('SPARQL_URL', 'https://staging.gss-data.org.uk/sparql')
 response = session.post(
-        'https://staging.gss-data.org.uk/sparql',
+        SPARQL_URL,
         headers={'Accept': 'application/sparql-results+json'},
         data={'query': '''
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
