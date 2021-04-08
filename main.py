@@ -1,3 +1,4 @@
+#%%
 from collections import defaultdict
 
 from cachecontrol import CacheControl
@@ -9,13 +10,15 @@ from os import environ
 
 import requests
 
-session = CacheControl(requests.Session(), cache=FileCache('.cache'), heuristic=ExpiresAfter(days=1))
+SPARQL_URL = environ.get('SPARQL_URL', 'http://staging.gss-data.org.uk/sparql')
 
-SPARQL_URL = environ.get('SPARQL_URL', 'https://staging.gss-data.org.uk/sparql')
-response = session.post(
+print(f"Looking for missing refernece periods at {SPARQL_URL}.")
+
+response = requests.get(
         SPARQL_URL,
+        allow_redirects=True,
         headers={'Accept': 'application/sparql-results+json'},
-        data={'query': '''
+        params={'query': '''
 PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
 PREFIX qb: <http://purl.org/linked-data/cube#>
 PREFIX sdmxdim: <http://purl.org/linked-data/sdmx/2009/dimension#>
@@ -38,7 +41,14 @@ SELECT DISTINCT ?dsgraph ?o WHERE {
   }
 }'''})
 
+response.raise_for_status()
+
 undefined = defaultdict(set)
+
+number_responses = len(response.json().get('results').get('bindings'))
+print(f"{number_responses} results found.")
+if number_responses == 0 :
+    print(response.content)
 
 for binding in response.json().get('results', {}).get('bindings', []):
     if binding.get('o', {}).get('type', None) != 'uri':
@@ -56,7 +66,7 @@ GREGORIAN_INSTANT = 'http://reference.data.gov.uk/id/gregorian-instant/'
 
 result = Graph()
 for refURI in undefined:
-    turtle = session.get(refURI, headers={'Accept': 'text/turtle'})
+    turtle = requests.get(refURI, headers={'Accept': 'text/turtle'})
     if turtle.status_code != requests.codes.ok:
         print(f'Error {turtle.status_code} for <{refURI}>')
         for dsgraph in undefined[refURI]:
