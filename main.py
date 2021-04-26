@@ -12,7 +12,13 @@ import requests
 
 SPARQL_URL = environ.get('SPARQL_URL', 'http://staging.gss-data.org.uk/sparql')
 
-print(f"Looking for missing refernece periods at {SPARQL_URL}.")
+# TODO: Fix this later - the staging pipeline points to the wrong endpoint,
+# the environment variable needs to be set properly.
+
+if SPARQL_URL == "http://gss-data.org.uk/sparql":
+    SPARQL_URL = "http://staging.gss-data.org.uk/sparql"
+
+print(f"Looking for missing reference periods at {SPARQL_URL}.")
 
 response = requests.get(
         SPARQL_URL,
